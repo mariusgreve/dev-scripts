@@ -72,6 +72,20 @@ class BranchNameTests(unittest.TestCase):
                 jira_branch.branch_name("PROJ-123", title, "")
 
 
+class UsernameTests(unittest.TestCase):
+    @patch("jira_branch.subprocess.run")
+    def test_username_removes_non_alphanumeric_characters(self, run):
+        run.return_value = MagicMock(returncode=0, stdout="marius.greve\n")
+        self.assertEqual(jira_branch.current_username(), "mariusgreve")
+        run.assert_called_once_with(["whoami"], capture_output=True, text=True, check=False)
+
+    @patch("jira_branch.subprocess.run")
+    def test_username_requires_alphanumeric_characters(self, run):
+        run.return_value = MagicMock(returncode=0, stdout="... \n")
+        with self.assertRaisesRegex(jira_branch.BranchError, "at least one letter or digit"):
+            jira_branch.current_username()
+
+
 class FetchTests(unittest.TestCase):
     @patch("jira_branch.build_opener")
     def test_request_contract(self, build_opener):
@@ -186,7 +200,9 @@ class GitIntegrationTests(unittest.TestCase):
             os.chdir(self.root)
             with patch.dict(os.environ, {**ENV, **(env or {})}, clear=True), patch(
                 "jira_branch.fetch_title", return_value=title
-            ) as fetch, contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            ) as fetch, patch(
+                "jira_branch.current_username", return_value="mariusgreve"
+            ), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                 result = jira_branch.main(list(args))
         finally:
             os.chdir(previous)
@@ -196,15 +212,15 @@ class GitIntegrationTests(unittest.TestCase):
         (self.root / "work.txt").write_text("unfinished work")
         result, stdout, stderr, _ = self.invoke("PROJ-123", "--prefix", "feature")
         self.assertEqual(result, 0, stderr)
-        self.assertIn("feature/PROJ-123/fix-login", stdout)
-        self.assertEqual(self.run_git("branch", "--show-current"), "feature/PROJ-123/fix-login")
+        self.assertIn("mariusgreve/feature/PROJ-123/fix-login", stdout)
+        self.assertEqual(self.run_git("branch", "--show-current"), "mariusgreve/feature/PROJ-123/fix-login")
         self.assertEqual(self.run_git("rev-parse", "HEAD"), self.original_head)
         self.assertEqual((self.root / "work.txt").read_text(), "unfinished work")
 
     def test_without_prefix(self):
         result, _, stderr, _ = self.invoke("PROJ-123")
         self.assertEqual(result, 0, stderr)
-        self.assertEqual(self.run_git("branch", "--show-current"), "PROJ-123/fix-login")
+        self.assertEqual(self.run_git("branch", "--show-current"), "mariusgreve/PROJ-123/fix-login")
 
     def test_ticket_key_is_normalized_to_uppercase(self):
         for key in ("proj-123", "PrOj-123"):
@@ -214,42 +230,42 @@ class GitIntegrationTests(unittest.TestCase):
                 fetch.assert_called_once_with(
                     "PROJ-123", "https://jira.example.com/jira", ENV["JIRA_TOKEN"]
                 )
-                self.assertEqual(self.run_git("branch", "--show-current"), "PROJ-123/fix-login")
+                self.assertEqual(self.run_git("branch", "--show-current"), "mariusgreve/PROJ-123/fix-login")
                 self.run_git("switch", self.original_branch)
-                self.run_git("branch", "-D", "PROJ-123/fix-login")
+                self.run_git("branch", "-D", "mariusgreve/PROJ-123/fix-login")
 
     def test_environment_prefix(self):
         result, _, stderr, _ = self.invoke(
             "PROJ-123", env={"JIRA_BRANCH_PREFIX": "users/alice"}
         )
         self.assertEqual(result, 0, stderr)
-        self.assertEqual(self.run_git("branch", "--show-current"), "users/alice/PROJ-123/fix-login")
+        self.assertEqual(self.run_git("branch", "--show-current"), "mariusgreve/users/alice/PROJ-123/fix-login")
 
     def test_argument_overrides_environment_prefix(self):
         result, _, stderr, _ = self.invoke(
             "PROJ-123", "--prefix", "bugfix", env={"JIRA_BRANCH_PREFIX": "feature"}
         )
         self.assertEqual(result, 0, stderr)
-        self.assertEqual(self.run_git("branch", "--show-current"), "bugfix/PROJ-123/fix-login")
+        self.assertEqual(self.run_git("branch", "--show-current"), "mariusgreve/bugfix/PROJ-123/fix-login")
 
     def test_empty_argument_disables_environment_prefix(self):
         result, _, stderr, _ = self.invoke(
             "PROJ-123", "--prefix", "", env={"JIRA_BRANCH_PREFIX": "feature"}
         )
         self.assertEqual(result, 0, stderr)
-        self.assertEqual(self.run_git("branch", "--show-current"), "PROJ-123/fix-login")
+        self.assertEqual(self.run_git("branch", "--show-current"), "mariusgreve/PROJ-123/fix-login")
 
     def test_existing_branch_is_not_overwritten(self):
-        self.run_git("branch", "PROJ-123/fix-login")
+        self.run_git("branch", "mariusgreve/PROJ-123/fix-login")
         result, stdout, stderr, _ = self.invoke("PROJ-123")
         self.assertEqual(result, 1)
         self.assertEqual(stdout, "")
         self.assertIn("already exists", stderr)
         self.assertEqual(self.run_git("branch", "--show-current"), self.original_branch)
-        self.assertEqual(self.run_git("rev-parse", "PROJ-123/fix-login"), self.original_head)
+        self.assertEqual(self.run_git("rev-parse", "mariusgreve/PROJ-123/fix-login"), self.original_head)
 
     def test_invalid_prefixes(self):
-        for prefix in ("bad prefix", "/feature", "feature/", "-feature", "bad..prefix", "a@{b"):
+        for prefix in ("bad prefix", "/feature", "feature/", "bad..prefix", "a@{b"):
             with self.subTest(prefix=prefix):
                 result, stdout, stderr, _ = self.invoke("PROJ-123", "--prefix=" + prefix)
                 self.assertEqual(result, 1)

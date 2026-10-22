@@ -127,6 +127,19 @@ def git(*args):
     return result.stdout.strip()
 
 
+def current_username():
+    try:
+        result = subprocess.run(["whoami"], capture_output=True, text=True, check=False)
+    except OSError:
+        raise BranchError("Could not run whoami to determine the current username.") from None
+    if result.returncode:
+        raise BranchError("Could not determine the current username with whoami.")
+    username = re.sub(r"[^A-Za-z0-9]", "", result.stdout.strip())
+    if not username:
+        raise BranchError("Current username must contain at least one letter or digit.")
+    return username
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description=(
@@ -146,11 +159,13 @@ def main(argv=None):
             raise BranchError("Invalid ticket key. Expected a key such as PROJ-123.")
         key = args.key.upper()
         base_url, token = configuration()
+        username = current_username()
         if git("rev-parse", "--is-inside-work-tree") != "true":
             raise BranchError("Run this script inside a Git working tree.")
         git("rev-parse", "--verify", "HEAD")
         title = fetch_title(key, base_url, token)
-        name = branch_name(key, title, args.prefix)
+        prefix = "/".join(part for part in (username, args.prefix) if part)
+        name = branch_name(key, title, prefix)
         if token in name:
             raise BranchError("Branch name contains the configured token; refusing to use it.")
         git("check-ref-format", "--branch", name)

@@ -4,7 +4,7 @@
 
 `jira_branch.py` creates a branch from the current commit and switches to it.
 Run it inside the Git repository where you want the branch. Requires Python 3
-and Git 2.23 or newer, with no additional Python dependencies.
+and Git 2.23 or newer, plus the `whoami` command.
 
 Set `JIRA_BASE_URL` to the Jira server's base URL and `JIRA_TOKEN` to a
 personal access token with permission to view the ticket. The script
@@ -15,22 +15,24 @@ export JIRA_BASE_URL="https://jira.example.com"
 export JIRA_TOKEN="<your-personal-access-token>"
 
 python3 /path/to/dev-scripts/jira_branch.py PROJ-123 --prefix feature
-# Creates and switches to: feature/PROJ-123/ticket-title-slug
+# Creates and switches to: <username>/feature/PROJ-123/ticket-title-slug
 
 python3 /path/to/dev-scripts/jira_branch.py PROJ-123
-# Creates and switches to: PROJ-123/ticket-title-slug
+# Creates and switches to: <username>/PROJ-123/ticket-title-slug
 
 export JIRA_BRANCH_PREFIX="feature"
 python3 /path/to/dev-scripts/jira_branch.py PROJ-123
-# Creates and switches to: feature/PROJ-123/ticket-title-slug
+# Creates and switches to: <username>/feature/PROJ-123/ticket-title-slug
 
 python3 /path/to/dev-scripts/jira_branch.py PROJ-123 --prefix bugfix
-# Overrides the environment prefix: bugfix/PROJ-123/ticket-title-slug
+# Overrides the environment prefix: <username>/bugfix/PROJ-123/ticket-title-slug
 ```
 
-`--prefix` takes precedence over `JIRA_BRANCH_PREFIX`. Use `--prefix ""` to omit
-an environment-configured prefix for one invocation. Without either, the name
-has no prefix.
+The script runs `whoami` and removes every character except ASCII letters and
+digits from its output before using it as the first branch segment. `--prefix`
+takes precedence over `JIRA_BRANCH_PREFIX` and, when set, is added after the
+username. Use `--prefix ""` to omit an environment-configured prefix for one
+invocation; the username segment is always included.
 
 Ticket keys may be entered in lowercase, uppercase, or mixed case; the script
 converts them to uppercase before requesting the Jira ticket and naming the
