@@ -13,7 +13,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 from urllib.error import HTTPError, URLError
 
-import jira_branch
+import create_branch
 
 
 ENV = {"JIRA_BASE_URL": "https://jira.example.com/jira/", "JIRA_TOKEN": "secret-test-token"}
@@ -23,7 +23,7 @@ class ConfigurationTests(unittest.TestCase):
     def test_configuration(self):
         with patch.dict(os.environ, ENV, clear=True):
             self.assertEqual(
-                jira_branch.configuration(),
+                create_branch.configuration(),
                 ("https://jira.example.com/jira", "secret-test-token"),
             )
 
@@ -43,18 +43,28 @@ class ConfigurationTests(unittest.TestCase):
         ]
         for env in cases:
             with self.subTest(env=env), patch.dict(os.environ, env, clear=True):
-                with self.assertRaises(jira_branch.BranchError):
-                    jira_branch.configuration()
+                with self.assertRaises(create_branch.BranchError):
+                    create_branch.configuration()
 
     def test_loopback_configuration(self):
         for host in ("localhost", "127.0.0.1", "[::1]"):
             with self.subTest(host=host), patch.dict(
                 os.environ, {**ENV, "JIRA_BASE_URL": f"http://{host}:8080"}
             ):
-                self.assertEqual(jira_branch.configuration()[0], f"http://{host}:8080")
+                self.assertEqual(create_branch.configuration()[0], f"http://{host}:8080")
 
 
 class BranchNameTests(unittest.TestCase):
+    def test_message_without_ticket(self):
+        self.assertEqual(
+            create_branch.branch_name("", "Oppdatere readme", "mariusgreve"),
+            "mariusgreve/oppdatere-readme",
+        )
+        self.assertEqual(
+            create_branch.branch_name("", "Oppdatere readme", ""),
+            "oppdatere-readme",
+        )
+
     def test_names(self):
         for title, prefix, expected in [
             ("Fix login: retry!", "", "PROJ-123/fix-login-retry"),
@@ -64,37 +74,37 @@ class BranchNameTests(unittest.TestCase):
             ("$(touch /tmp/unwanted); fix", "", "PROJ-123/touch-tmp-unwanted-fix"),
         ]:
             with self.subTest(title=title, prefix=prefix):
-                self.assertEqual(jira_branch.branch_name("PROJ-123", title, prefix), expected)
+                self.assertEqual(create_branch.branch_name("PROJ-123", title, prefix), expected)
 
     def test_empty_slug(self):
         for title in ("!!!", "\u65e5\u672c\u8a9e", " "):
-            with self.subTest(title=title), self.assertRaises(jira_branch.BranchError):
-                jira_branch.branch_name("PROJ-123", title, "")
+            with self.subTest(title=title), self.assertRaises(create_branch.BranchError):
+                create_branch.branch_name("PROJ-123", title, "")
 
 
 class UsernameTests(unittest.TestCase):
-    @patch("jira_branch.subprocess.run")
+    @patch("create_branch.subprocess.run")
     def test_username_removes_non_alphanumeric_characters(self, run):
         run.return_value = MagicMock(returncode=0, stdout="marius.greve\n")
-        self.assertEqual(jira_branch.current_username(), "mariusgreve")
+        self.assertEqual(create_branch.current_username(), "mariusgreve")
         run.assert_called_once_with(["whoami"], capture_output=True, text=True, check=False)
 
-    @patch("jira_branch.subprocess.run")
+    @patch("create_branch.subprocess.run")
     def test_username_requires_alphanumeric_characters(self, run):
         run.return_value = MagicMock(returncode=0, stdout="... \n")
-        with self.assertRaisesRegex(jira_branch.BranchError, "at least one letter or digit"):
-            jira_branch.current_username()
+        with self.assertRaisesRegex(create_branch.BranchError, "at least one letter or digit"):
+            create_branch.current_username()
 
 
 class FetchTests(unittest.TestCase):
-    @patch("jira_branch.build_opener")
+    @patch("create_branch.build_opener")
     def test_request_contract(self, build_opener):
         response = build_opener.return_value.open.return_value.__enter__.return_value
         response.read.return_value = json.dumps(
             {"key": "PROJ-123", "fields": {"summary": "Fix login"}}
         ).encode()
         self.assertEqual(
-            jira_branch.fetch_title("PROJ-123", "https://jira.example.com/jira", ENV["JIRA_TOKEN"]),
+            create_branch.fetch_title("PROJ-123", "https://jira.example.com/jira", ENV["JIRA_TOKEN"]),
             "Fix login",
         )
         request = build_opener.return_value.open.call_args.args[0]
@@ -105,9 +115,9 @@ class FetchTests(unittest.TestCase):
         self.assertEqual(request.get_method(), "GET")
         self.assertEqual(request.get_header("Authorization"), "Bearer " + ENV["JIRA_TOKEN"])
         self.assertEqual(build_opener.return_value.open.call_args.kwargs, {"timeout": 30})
-        self.assertIsInstance(build_opener.call_args.args[0], jira_branch.NoRedirects)
+        self.assertIsInstance(build_opener.call_args.args[0], create_branch.NoRedirects)
 
-    @patch("jira_branch.build_opener")
+    @patch("create_branch.build_opener")
     def test_bad_responses(self, build_opener):
         response = build_opener.return_value.open.return_value.__enter__.return_value
         for data in (
@@ -119,11 +129,11 @@ class FetchTests(unittest.TestCase):
             b'{"key":"PROJ-123","fields":{"summary":123}}',
             b'{"key":"PROJ-123","fields":{"summary":"secret-test-token"}}',
         ):
-            with self.subTest(data=data), self.assertRaises(jira_branch.BranchError):
+            with self.subTest(data=data), self.assertRaises(create_branch.BranchError):
                 response.read.return_value = data
-                jira_branch.fetch_title("PROJ-123", "https://jira.example.com", ENV["JIRA_TOKEN"])
+                create_branch.fetch_title("PROJ-123", "https://jira.example.com", ENV["JIRA_TOKEN"])
 
-    @patch("jira_branch.build_opener")
+    @patch("create_branch.build_opener")
     def test_connection_errors(self, build_opener):
         for error, message in [
             (URLError(TimeoutError()), "timed out"),
@@ -132,11 +142,11 @@ class FetchTests(unittest.TestCase):
             (HTTPException(), "Could not connect"),
             (OSError(), "Could not connect"),
         ]:
-            with self.subTest(error=error), self.assertRaisesRegex(jira_branch.BranchError, message):
+            with self.subTest(error=error), self.assertRaisesRegex(create_branch.BranchError, message):
                 build_opener.return_value.open.side_effect = error
-                jira_branch.fetch_title("PROJ-123", "https://jira.example.com", ENV["JIRA_TOKEN"])
+                create_branch.fetch_title("PROJ-123", "https://jira.example.com", ENV["JIRA_TOKEN"])
 
-    @patch("jira_branch.build_opener")
+    @patch("create_branch.build_opener")
     def test_http_errors(self, build_opener):
         for code in (301, 302, 401, 403, 404, 500):
             with self.subTest(code=code):
@@ -144,8 +154,8 @@ class FetchTests(unittest.TestCase):
                 build_opener.return_value.open.side_effect = HTTPError(
                     "https://jira.example.com", code, "error", {}, body
                 )
-                with self.assertRaises(jira_branch.BranchError) as caught:
-                    jira_branch.fetch_title("PROJ-123", "https://jira.example.com", ENV["JIRA_TOKEN"])
+                with self.assertRaises(create_branch.BranchError) as caught:
+                    create_branch.fetch_title("PROJ-123", "https://jira.example.com", ENV["JIRA_TOKEN"])
                 self.assertNotIn("sensitive", str(caught.exception))
                 self.assertTrue(body.closed)
 
@@ -166,8 +176,8 @@ class FetchTests(unittest.TestCase):
             thread = threading.Thread(target=server.serve_forever)
             thread.start()
             try:
-                with self.assertRaisesRegex(jira_branch.BranchError, "redirect"):
-                    jira_branch.fetch_title(
+                with self.assertRaisesRegex(create_branch.BranchError, "redirect"):
+                    create_branch.fetch_title(
                         "PROJ-123", f"http://127.0.0.1:{server.server_port}", ENV["JIRA_TOKEN"]
                     )
             finally:
@@ -199,11 +209,11 @@ class GitIntegrationTests(unittest.TestCase):
         try:
             os.chdir(self.root)
             with patch.dict(os.environ, {**ENV, **(env or {})}, clear=True), patch(
-                "jira_branch.fetch_title", return_value=title
+                "create_branch.fetch_title", return_value=title
             ) as fetch, patch(
-                "jira_branch.current_username", return_value="mariusgreve"
+                "create_branch.current_username", return_value="mariusgreve"
             ), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-                result = jira_branch.main(list(args))
+                result = create_branch.main(list(args))
         finally:
             os.chdir(previous)
         return result, stdout.getvalue(), stderr.getvalue(), fetch
@@ -273,22 +283,85 @@ class GitIntegrationTests(unittest.TestCase):
                 self.assertIn("Git command failed", stderr)
                 self.assertEqual(self.run_git("branch", "--show-current"), self.original_branch)
 
-    def test_invalid_keys_do_not_fetch(self):
-        for key in ("PROJ-0", "../PROJ-1", "PROJ.-123", "PROJ-1/title"):
-            with self.subTest(key=key):
-                result, _, stderr, fetch = self.invoke(key)
-                self.assertEqual(result, 1)
-                self.assertIn("Invalid ticket key", stderr)
+    def test_messages_and_explicit_titles_do_not_fetch(self):
+        cases = [
+            (("oppdatere readme",), "oppdatere-readme"),
+            (("oppdatere", "readme"), "oppdatere-readme"),
+            (("KDD-123 oppdatere readme",), "KDD-123/oppdatere-readme"),
+            (("KDD-123", "oppdatere", "readme"), "KDD-123/oppdatere-readme"),
+            (("kdd-123", "oppdatere readme"), "KDD-123/oppdatere-readme"),
+            (("  KDD-123 \t oppdatere readme  ",), "KDD-123/oppdatere-readme"),
+            (("oppdatere KDD-123 readme",), "oppdatere-kdd-123-readme"),
+            (("PROJ-0",), "proj-0"),
+            (("../PROJ-1",), "proj-1"),
+            (("PROJ.-123",), "proj-123"),
+            (("PROJ-1/title",), "proj-1-title"),
+        ]
+        for args, suffix in cases:
+            with self.subTest(args=args):
+                result, _, stderr, fetch = self.invoke(
+                    *args, env={"JIRA_BASE_URL": "", "JIRA_TOKEN": ""}
+                )
+                self.assertEqual(result, 0, stderr)
                 fetch.assert_not_called()
+                name = "mariusgreve/" + suffix
+                self.assertEqual(self.run_git("branch", "--show-current"), name)
+                self.assertEqual(self.run_git("rev-parse", "HEAD"), self.original_head)
+                self.run_git("switch", self.original_branch)
+                self.run_git("branch", "-D", name)
+
+    def test_explicit_titles_ignore_invalid_jira_configuration(self):
+        result, _, stderr, fetch = self.invoke(
+            "KDD-123 oppdatere readme",
+            env={"JIRA_BASE_URL": "not an address", "JIRA_TOKEN": "invalid token"},
+        )
+        self.assertEqual(result, 0, stderr)
+        fetch.assert_not_called()
+
+    def test_message_with_prefix(self):
+        result, _, stderr, fetch = self.invoke(
+            "oppdatere readme", "--prefix", "feature",
+            env={"JIRA_BASE_URL": "", "JIRA_TOKEN": ""},
+        )
+        self.assertEqual(result, 0, stderr)
+        self.assertEqual(
+            self.run_git("branch", "--show-current"), "mariusgreve/feature/oppdatere-readme"
+        )
+        fetch.assert_not_called()
+
+    def test_empty_messages_do_not_create_branch(self):
+        for message in ("", "  ", "!!!", "KDD-123 !!!", "\u65e5\u672c\u8a9e"):
+            with self.subTest(message=message):
+                result, stdout, stderr, fetch = self.invoke(message)
+                self.assertEqual(result, 1)
+                self.assertEqual(stdout, "")
+                self.assertIn("Error:", stderr)
+                fetch.assert_not_called()
+                self.assertEqual(self.run_git("branch", "--show-current"), self.original_branch)
+
+    def test_ticket_only_requires_jira_configuration(self):
+        result, stdout, stderr, fetch = self.invoke(
+            "KDD-123", env={"JIRA_BASE_URL": "", "JIRA_TOKEN": ""}
+        )
+        self.assertEqual(result, 1)
+        self.assertEqual(stdout, "")
+        self.assertIn("Set JIRA_BASE_URL and JIRA_TOKEN", stderr)
+        fetch.assert_not_called()
+        self.assertEqual(self.run_git("branch", "--show-current"), self.original_branch)
+
+    def test_missing_message_is_rejected(self):
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as caught:
+            create_branch.main([])
+        self.assertEqual(caught.exception.code, 2)
 
     def test_fetch_failure_does_not_create_branch(self):
-        with patch("jira_branch.fetch_title", side_effect=jira_branch.BranchError("Jira denied access")):
-            with patch.object(jira_branch, "configuration", return_value=("https://jira.example.com", "token")):
+        with patch("create_branch.fetch_title", side_effect=create_branch.BranchError("Jira denied access")):
+            with patch.object(create_branch, "configuration", return_value=("https://jira.example.com", "token")):
                 previous = Path.cwd()
                 try:
                     os.chdir(self.root)
                     with contextlib.redirect_stderr(io.StringIO()):
-                        self.assertEqual(jira_branch.main(["PROJ-123"]), 1)
+                        self.assertEqual(create_branch.main(["PROJ-123"]), 1)
                 finally:
                     os.chdir(previous)
         self.assertEqual(self.run_git("branch", "--format=%(refname:short)"), self.original_branch)
@@ -300,18 +373,28 @@ class GitIntegrationTests(unittest.TestCase):
         self.assertNotIn(ENV["JIRA_TOKEN"], stderr)
         self.assertEqual(self.run_git("branch", "--show-current"), self.original_branch)
 
+    def test_token_in_message_is_rejected(self):
+        for message in (ENV["JIRA_TOKEN"], "KDD-123 " + ENV["JIRA_TOKEN"]):
+            with self.subTest(message=message):
+                result, stdout, stderr, fetch = self.invoke(message)
+                self.assertEqual(result, 1)
+                self.assertEqual(stdout, "")
+                self.assertNotIn(ENV["JIRA_TOKEN"], stderr)
+                fetch.assert_not_called()
+                self.assertEqual(self.run_git("branch", "--show-current"), self.original_branch)
+
 
 class GitErrorTests(unittest.TestCase):
-    @patch("jira_branch.subprocess.run", side_effect=FileNotFoundError())
+    @patch("create_branch.subprocess.run", side_effect=FileNotFoundError())
     def test_missing_git(self, run):
-        with self.assertRaisesRegex(jira_branch.BranchError, "installed"):
-            jira_branch.git("status")
+        with self.assertRaisesRegex(create_branch.BranchError, "installed"):
+            create_branch.git("status")
 
-    @patch("jira_branch.subprocess.run")
+    @patch("create_branch.subprocess.run")
     def test_git_failure(self, run):
         run.return_value = MagicMock(returncode=1, stderr="not a git repository", stdout="")
-        with self.assertRaisesRegex(jira_branch.BranchError, "not a git repository"):
-            jira_branch.git("rev-parse", "--is-inside-work-tree")
+        with self.assertRaisesRegex(create_branch.BranchError, "not a git repository"):
+            create_branch.git("rev-parse", "--is-inside-work-tree")
 
 
 if __name__ == "__main__":

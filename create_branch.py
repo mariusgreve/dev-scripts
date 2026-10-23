@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create and switch to a Git branch named after a Jira ticket."""
+"""Create and switch to a Git branch from a message or Jira ticket."""
 
 import argparse
 from http.client import HTTPException
@@ -110,8 +110,8 @@ def branch_name(key, title, prefix):
     normalized = unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode("ascii")
     slug = re.sub(r"[^a-z0-9]+", "-", normalized.lower()).strip("-")
     if not slug:
-        raise BranchError("Ticket title cannot produce a non-empty ASCII branch slug.")
-    return f"{prefix}/{key}/{slug}" if prefix else f"{key}/{slug}"
+        raise BranchError("Branch title cannot produce a non-empty ASCII branch slug.")
+    return "/".join(part for part in (prefix, key, slug) if part)
 
 
 def git(*args):
@@ -143,11 +143,15 @@ def current_username():
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description=(
-            "Create and switch to a branch from the current commit using a Jira ticket. "
-            "Requires JIRA_BASE_URL and JIRA_TOKEN."
+            "Create and switch to a branch from the current commit using a message "
+            "or Jira ticket. Only a ticket key without a message requires "
+            "JIRA_BASE_URL and JIRA_TOKEN."
         )
     )
-    parser.add_argument("key", help="Jira ticket key, for example PROJ-123")
+    parser.add_argument(
+        "message", nargs="+",
+        help="Branch message, Jira ticket key, or ticket key followed by a message",
+    )
     parser.add_argument(
         "--prefix",
         default=os.environ.get("JIRA_BRANCH_PREFIX", ""),
@@ -155,18 +159,29 @@ def main(argv=None):
     )
     args = parser.parse_args(argv)
     try:
-        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*-[1-9][0-9]*", args.key):
-            raise BranchError("Invalid ticket key. Expected a key such as PROJ-123.")
-        key = args.key.upper()
-        base_url, token = configuration()
+        message = " ".join(args.message).strip()
+        if not message:
+            raise BranchError("Provide a branch message or Jira ticket key.")
+        parts = message.split(maxsplit=1)
+        key = ""
+        title = message
+        if re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*-[1-9][0-9]*", parts[0]):
+            key = parts[0].upper()
+            title = parts[1] if len(parts) > 1 else ""
+        token = os.environ.get("JIRA_TOKEN", "")
+        if key and not title:
+            base_url, token = configuration()
         username = current_username()
         if git("rev-parse", "--is-inside-work-tree") != "true":
             raise BranchError("Run this script inside a Git working tree.")
         git("rev-parse", "--verify", "HEAD")
-        title = fetch_title(key, base_url, token)
+        if key and not title:
+            title = fetch_title(key, base_url, token)
+        if token and token in title:
+            raise BranchError("Branch title contains the configured token; refusing to use it.")
         prefix = "/".join(part for part in (username, args.prefix) if part)
         name = branch_name(key, title, prefix)
-        if token in name:
+        if token and token in name:
             raise BranchError("Branch name contains the configured token; refusing to use it.")
         git("check-ref-format", "--branch", name)
         git("switch", "-c", name)
