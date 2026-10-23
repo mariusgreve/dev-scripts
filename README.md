@@ -1,5 +1,19 @@
 # dev-scripts
 
+## Install
+
+```sh
+./install.sh
+```
+
+Creates `~/.local/bin/create-branch` as a symbolic link to `create_branch.py`.
+Existing files are not overwritten. Keep this repository in place and make sure
+`~/.local/bin` is on your `PATH`, then run:
+
+```sh
+create-branch "update readme"
+```
+
 ## Create a branch
 
 `create_branch.py` creates and switches to a branch from a message or Jira ticket.
