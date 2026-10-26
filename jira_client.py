@@ -99,3 +99,61 @@ def fetch_title(key, base_url, token):
         raise JiraError("Jira title contains the configured token; refusing to use it.")
     return title
 
+
+def search_issues(jql, base_url, token, *, max_results=100, page_size=50):
+    """Read at most max_results matching issues using Jira REST API v2."""
+    if not isinstance(jql, str) or not jql.strip():
+        raise JiraError("Provide a non-empty JQL query.")
+    if not isinstance(max_results, int) or isinstance(max_results, bool) or not 1 <= max_results <= 1000:
+        raise JiraError("max_results must be between 1 and 1000.")
+    if not isinstance(page_size, int) or isinstance(page_size, bool) or not 1 <= page_size <= 100:
+        raise JiraError("page_size must be between 1 and 100.")
+
+    fields = "summary,description,status,priority,issuetype,assignee,labels,updated,created,duedate,issuelinks,subtasks,parent,timetracking,timeestimate"
+    issues = []
+    while len(issues) < max_results:
+        requested = min(page_size, max_results - len(issues))
+        params = urlencode({
+            "jql": jql, "startAt": len(issues), "maxResults": requested,
+            "fields": fields,
+        })
+        request = Request(
+            base_url + "/rest/api/2/search?" + params,
+            headers={"Accept": "application/json", "Authorization": "Bearer " + token},
+            method="GET",
+        )
+        try:
+            with build_opener(NoRedirects()).open(request, timeout=30) as response:
+                data = response.read()
+        except HTTPError as exc:
+            code = exc.code
+            exc.close()
+            if 300 <= code < 400:
+                raise JiraError("Jira redirected the request; redirects are disabled. Check JIRA_BASE_URL.") from None
+            raise JiraError(f"Jira search failed with HTTP status {code}.") from None
+        except (URLError, OSError, HTTPException) as exc:
+            reason = exc.reason if isinstance(exc, URLError) else exc
+            if isinstance(reason, TimeoutError):
+                message = "Jira request timed out."
+            elif isinstance(reason, ssl.SSLError):
+                message = "Jira certificate verification or secure connection failed."
+            else:
+                message = "Could not connect to Jira. Check the base address and network access."
+            raise JiraError(message) from None
+        try:
+            result = json.loads(data)
+        except (ValueError, UnicodeError):
+            raise JiraError("Jira returned invalid JSON from search.") from None
+        if (not isinstance(result, dict) or not isinstance(result.get("issues"), list)
+                or not isinstance(result.get("total"), int)):
+            raise JiraError("Jira returned an unexpected search response.")
+        batch = result["issues"]
+        if len(batch) > requested:
+            raise JiraError("Jira returned more issues than requested.")
+        if any(not isinstance(item, dict) or not isinstance(item.get("key"), str)
+               or not isinstance(item.get("fields"), dict) for item in batch):
+            raise JiraError("Jira returned an invalid issue.")
+        issues.extend(batch)
+        if not batch or len(issues) >= result["total"]:
+            break
+    return issues
