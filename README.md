@@ -6,12 +6,13 @@
 ./install.sh
 ```
 
-Creates `~/.local/bin/create-branch` as a symbolic link to `create_branch.py`.
-Existing files are not overwritten. Keep this repository in place and make sure
-`~/.local/bin` is on your `PATH`, then run:
+Installs `create-branch` and `jira-backlog` launchers in `~/.local/bin`.
+Re-running the installer updates its launchers without overwriting unrelated commands.
+Keep this repository in place and ensure `~/.local/bin` is on your `PATH`, then run:
 
 ```sh
 create-branch "update readme"
+jira-backlog --help
 ```
 
 ## Create a branch
@@ -21,13 +22,13 @@ Run it inside a Git repository with at least one commit. Requires Python 3,
 Git 2.23 or newer, and `whoami`.
 
 ```sh
-python3 /path/to/dev-scripts/create_branch.py "update readme"
+create-branch "update readme"
 # <username>/update-readme
 
-python3 /path/to/dev-scripts/create_branch.py "PROJ-123 update readme"
+create-branch "PROJ-123 update readme"
 # <username>/PROJ-123/update-readme
 
-python3 /path/to/dev-scripts/create_branch.py PROJ-123
+create-branch PROJ-123
 # <username>/PROJ-123/ticket-title-slug (title fetched from Jira)
 ```
 
@@ -45,14 +46,16 @@ export JIRA_TOKEN="<your-personal-access-token>"
 ```
 
 Use a Jira Data Center/Server token with permission to view the ticket.
-The shared `jira_client.py` module handles Jira configuration, authentication,\nHTTP requests and errors. `create_branch.py` uses it to read the ticket title\nwithout modifying Jira.
+The shared `jira_client.py` module handles Jira configuration, authentication,
+HTTP requests and errors. `create-branch` uses it to read the ticket title
+without modifying Jira.
 
 ### Optional prefix
 
 Add a prefix after the username with `--prefix`:
 
 ```sh
-python3 /path/to/dev-scripts/create_branch.py "update readme" --prefix feature
+create-branch "update readme" --prefix feature
 # <username>/feature/update-readme
 ```
 
@@ -76,7 +79,7 @@ and `JIRA_TOKEN` environment variables as `create_branch.py`.
 
 ```sh
 jira-backlog --jql 'project = PROJ AND statusCategory != Done ORDER BY priority DESC' > backlog.json
-python3 jira_backlog.py --jql 'project = PROJ' --limit 50 --page-size 25
+jira-backlog --jql 'project = PROJ' --limit 50 --page-size 25
 ```
 
 The script reads at most 100 issues by default (maximum 1000) and follows
