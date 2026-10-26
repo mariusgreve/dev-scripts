@@ -72,14 +72,14 @@ class SearchTests(unittest.TestCase):
         search.assert_called_once_with("project = P", "https://jira.example.com",
                                        "token", max_results=5, page_size=50)
 
-    @patch("jira_backlog.search_issues", return_value=[{"key": "P-1", "fields": {"summary": "token"}}])
-    @patch("jira_backlog.configuration", return_value=("https://jira.example.com", "token"))
+    @patch("jira_backlog.search_issues", return_value=[{"key": "P-1", "fields": {"summary": "secret-test-token"}}])
+    @patch("jira_backlog.configuration", return_value=("https://jira.example.com", "secret-test-token"))
     def test_no_secret_in_output(self, config, search):
         stdout, stderr = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             self.assertEqual(jira_backlog.main(["--jql", "project=P"]), 1)
         self.assertEqual(stdout.getvalue(), "")
-        self.assertNotIn("token", stderr.getvalue())
+        self.assertNotIn("secret-test-token", stderr.getvalue())
 
 
 if __name__ == "__main__":
