@@ -6,14 +6,13 @@
 ./install.sh
 ```
 
-Installs `create-branch` and `jira-backlog` launchers in `~/.local/bin`.
-Re-running the installer updates its launchers without overwriting unrelated commands.
-Keep this repository in place and ensure `~/.local/bin` is on your `PATH`, then run:
+The installer discovers every executable Python script in `bin/` and creates a
+symlink in `~/.local/bin`. Command names are derived from filenames by removing
+the `.py` extension and replacing underscores with hyphens.
 
-```sh
-create-branch "update readme"
-jira-backlog --help
-```
+Keep this repository in place and ensure `~/.local/bin` is on your `PATH`.
+Re-running the installer preserves existing matching symlinks and does not
+overwrite unrelated commands.
 
 ## Create a branch
 
