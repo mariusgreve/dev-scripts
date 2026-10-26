@@ -66,3 +66,24 @@ Run locally without Jira credentials or access to Jira:
 ```sh
 python3 -m unittest discover -s tests -v
 ```
+
+
+## Export Jira backlog
+
+`jira_backlog.py` exports matching Jira Server/Data Center issues as JSON for
+analysis by Copilot or other local tools. Requires the same `JIRA_BASE_URL`
+and `JIRA_TOKEN` environment variables as `create_branch.py`.
+
+```sh
+python3 jira_backlog.py --jql 'project = PROJ AND statusCategory != Done ORDER BY priority DESC' > backlog.json
+python3 jira_backlog.py --jql 'project = PROJ' --limit 50 --page-size 25
+```
+
+The script reads at most 100 issues by default (maximum 1000) and follows
+Jira pagination. It exports standard issue fields including descriptions,
+status, priority, issue links, estimates and dates. Jira project-specific
+custom fields, including story points, may have different IDs.
+
+It does not rank issues, modify Jira or call an AI model. Review and handle
+exported data according to your organization's policies; avoid committing
+backlog exports or sending internal issue contents to unapproved services.
