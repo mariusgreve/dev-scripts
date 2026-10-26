@@ -109,7 +109,7 @@ def search_issues(jql, base_url, token, *, max_results=100, page_size=50):
     if not isinstance(page_size, int) or isinstance(page_size, bool) or not 1 <= page_size <= 100:
         raise JiraError("page_size must be between 1 and 100.")
 
-    fields = "summary,description,status,priority,issuetype,assignee,labels,updated,created,duedate,issuelinks,subtasks,parent,timetracking,timeestimate,customfield_10016"
+    fields = "summary,description,status,priority,issuetype,assignee,labels,updated,created,duedate,issuelinks,subtasks,parent,timetracking,timeestimate"
     issues = []
     while len(issues) < max_results:
         requested = min(page_size, max_results - len(issues))
