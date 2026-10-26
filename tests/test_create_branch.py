@@ -389,6 +389,20 @@ class GitIntegrationTests(unittest.TestCase):
                 self.assertEqual(self.run_git("branch", "--show-current"), self.original_branch)
 
 
+class SymlinkCommandTests(unittest.TestCase):
+    def test_cli_help_from_symlink(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as directory:
+            link = Path(directory) / "create-branch"
+            link.symlink_to(repo_root / "bin" / "create_branch.py")
+            result = subprocess.run(
+                [sys.executable, str(link), "--help"],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("--prefix", result.stdout)
+
+
 class GitErrorTests(unittest.TestCase):
     @patch("create_branch.subprocess.run", side_effect=FileNotFoundError())
     def test_missing_git(self, run):
