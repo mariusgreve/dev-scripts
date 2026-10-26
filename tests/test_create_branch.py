@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, patch
 from urllib.error import HTTPError, URLError
 
 import create_branch
+import jira_client
 
 
 ENV = {"JIRA_BASE_URL": "https://jira.example.com/jira/", "JIRA_TOKEN": "secret-test-token"}
@@ -97,7 +98,7 @@ class UsernameTests(unittest.TestCase):
 
 
 class FetchTests(unittest.TestCase):
-    @patch("create_branch.build_opener")
+    @patch("jira_client.build_opener")
     def test_request_contract(self, build_opener):
         response = build_opener.return_value.open.return_value.__enter__.return_value
         response.read.return_value = json.dumps(
@@ -115,9 +116,9 @@ class FetchTests(unittest.TestCase):
         self.assertEqual(request.get_method(), "GET")
         self.assertEqual(request.get_header("Authorization"), "Bearer " + ENV["JIRA_TOKEN"])
         self.assertEqual(build_opener.return_value.open.call_args.kwargs, {"timeout": 30})
-        self.assertIsInstance(build_opener.call_args.args[0], create_branch.NoRedirects)
+        self.assertIsInstance(build_opener.call_args.args[0], jira_client.NoRedirects)
 
-    @patch("create_branch.build_opener")
+    @patch("jira_client.build_opener")
     def test_bad_responses(self, build_opener):
         response = build_opener.return_value.open.return_value.__enter__.return_value
         for data in (
@@ -133,7 +134,7 @@ class FetchTests(unittest.TestCase):
                 response.read.return_value = data
                 create_branch.fetch_title("PROJ-123", "https://jira.example.com", ENV["JIRA_TOKEN"])
 
-    @patch("create_branch.build_opener")
+    @patch("jira_client.build_opener")
     def test_connection_errors(self, build_opener):
         for error, message in [
             (URLError(TimeoutError()), "timed out"),
@@ -146,7 +147,7 @@ class FetchTests(unittest.TestCase):
                 build_opener.return_value.open.side_effect = error
                 create_branch.fetch_title("PROJ-123", "https://jira.example.com", ENV["JIRA_TOKEN"])
 
-    @patch("create_branch.build_opener")
+    @patch("jira_client.build_opener")
     def test_http_errors(self, build_opener):
         for code in (301, 302, 401, 403, 404, 500):
             with self.subTest(code=code):
@@ -395,6 +396,18 @@ class GitErrorTests(unittest.TestCase):
         run.return_value = MagicMock(returncode=1, stderr="not a git repository", stdout="")
         with self.assertRaisesRegex(create_branch.BranchError, "not a git repository"):
             create_branch.git("rev-parse", "--is-inside-work-tree")
+
+
+class JiraClientIsolationTests(unittest.TestCase):
+    def test_branch_uses_shared_client(self):
+        self.assertIs(create_branch.fetch_title, jira_client.fetch_title)
+        self.assertIs(create_branch.configuration, jira_client.configuration)
+        self.assertIs(create_branch.BranchError, jira_client.JiraError)
+
+    def test_jira_failure_is_shared_error(self):
+        with patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(jira_client.JiraError):
+                jira_client.configuration()
 
 
 if __name__ == "__main__":
