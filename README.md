@@ -17,7 +17,7 @@ jira-backlog --help
 
 ## Create a branch
 
-`create_branch.py` creates and switches to a branch from a message or Jira ticket.
+`bin/create_branch.py` creates and switches to a branch from a message or Jira ticket.
 Run it inside a Git repository with at least one commit. Requires Python 3,
 Git 2.23 or newer, and `whoami`.
 
@@ -46,7 +46,7 @@ export JIRA_TOKEN="<your-personal-access-token>"
 ```
 
 Use a Jira Data Center/Server token with permission to view the ticket.
-The shared `jira_client.py` module handles Jira configuration, authentication,
+The shared `lib/jira_client.py` module handles Jira configuration, authentication,
 HTTP requests and errors. `create-branch` uses it to read the ticket title
 without modifying Jira.
 
@@ -73,7 +73,7 @@ python3 -m unittest discover -s tests -v
 
 ## Export Jira backlog
 
-`jira_backlog.py` exports matching Jira Server/Data Center issues as JSON for
+`bin/jira_backlog.py` exports matching Jira Server/Data Center issues as JSON for
 analysis by Copilot or other local tools. Requires the same `JIRA_BASE_URL`
 and `JIRA_TOKEN` environment variables as `create_branch.py`.
 
