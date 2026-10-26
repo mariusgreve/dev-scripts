@@ -75,7 +75,7 @@ analysis by Copilot or other local tools. Requires the same `JIRA_BASE_URL`
 and `JIRA_TOKEN` environment variables as `create_branch.py`.
 
 ```sh
-python3 jira_backlog.py --jql 'project = PROJ AND statusCategory != Done ORDER BY priority DESC' > backlog.json
+jira-backlog --jql 'project = PROJ AND statusCategory != Done ORDER BY priority DESC' > backlog.json
 python3 jira_backlog.py --jql 'project = PROJ' --limit 50 --page-size 25
 ```
 
