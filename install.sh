@@ -24,30 +24,29 @@ for name in create-branch jira-backlog; do
         exit 1
     }
 
-    # Replace only links to our source script or wrappers installed by this script.
     if [ -L "$destination" ]; then
         if [ "$(readlink "$destination")" != "$source_path" ]; then
             printf 'Error: %s already points elsewhere\n' "$destination" >&2
             exit 1
         fi
-        rm "$destination"
-    elif [ -e "$destination" ]; then
-        if ! grep -Fqx '# installed by dev-scripts/install.sh' "$destination" 2>/dev/null || \
-           ! grep -Fqx "# source: $source_path" "$destination" 2>/dev/null; then
+        printf 'Already installed: %s\n' "$destination"
+        continue
+    fi
+
+    if [ -e "$destination" ]; then
+        # Migrate wrappers created by the previous version of this installer.
+        if grep -Fqx '# installed by dev-scripts/install.sh' "$destination" 2>/dev/null &&
+           grep -Fqx "# source: $source_path" "$destination" 2>/dev/null; then
+            rm "$destination"
+        else
             printf 'Error: %s already exists\n' "$destination" >&2
             exit 1
         fi
     fi
 
-    # Shell launchers work even if the Python source is not executable.
-    temp="$destination.tmp.$$"
-    trap 'rm -f "$temp"' EXIT HUP INT TERM
-    printf '#!/bin/sh\n# installed by dev-scripts/install.sh\n# source: %s\nexec python3 "%s" "$@"\n' \
-        "$source_path" "$source_path" > "$temp"
-    chmod 755 "$temp"
-    mv -f "$temp" "$destination"
-    trap - EXIT HUP INT TERM
-    printf 'Installed %s\n' "$destination"
+    chmod +x "$source_path"
+    ln -s "$source_path" "$destination"
+    printf 'Installed %s -> %s\n' "$destination" "$source_path"
 done
 
 case ":$PATH:" in
