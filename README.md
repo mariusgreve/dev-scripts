@@ -45,7 +45,7 @@ export JIRA_TOKEN="<your-personal-access-token>"
 ```
 
 Use a Jira Data Center/Server token with permission to view the ticket.
-The script only reads its title and does not modify Jira.
+The shared `jira_client.py` module handles Jira configuration, authentication,\nHTTP requests and errors. `create_branch.py` uses it to read the ticket title\nwithout modifying Jira.
 
 ### Optional prefix
 
