@@ -3,16 +3,16 @@
 
 import argparse
 import os
-
-import os as _os
-import sys as _sys
-_sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), "..", "lib"))
-
-from jira_client import JiraError as BranchError, configuration, fetch_title
 import re
 import subprocess
 import sys
 import unicodedata
+
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+
+from jira_client import JiraError as BranchError, configuration, fetch_title
 
 
 
