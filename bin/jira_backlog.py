@@ -5,6 +5,10 @@ import argparse
 import json
 import sys
 
+import os as _os
+import sys as _sys
+_sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), "..", "lib"))
+
 from jira_client import JiraError, configuration, search_issues
 
 
