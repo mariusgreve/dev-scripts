@@ -15,6 +15,20 @@ import jira_client
 
 
 class SearchTests(unittest.TestCase):
+
+    def test_help_via_symlink(self):
+        import subprocess
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            link = Path(directory) / "jira-backlog"
+            link.symlink_to(Path(__file__).resolve().parents[1] / "bin" / "jira_backlog.py")
+            result = subprocess.run(
+                [sys.executable, str(link), "--help"],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("--jql", result.stdout)
+
     @patch("jira_client.build_opener")
     def test_paginates_and_encodes_jql(self, opener):
         responses = [
