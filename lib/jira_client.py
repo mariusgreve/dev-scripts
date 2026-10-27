@@ -24,6 +24,16 @@ def configuration():
     token = os.environ.get("JIRA_TOKEN", "")
     if not base_url or not token:
         raise JiraError("Set JIRA_BASE_URL and JIRA_TOKEN before fetching a ticket.")
+    base_url = jira_base_url()
+    if not re.fullmatch(r"[!-~]+", token):
+        raise JiraError("JIRA_TOKEN must contain only visible ASCII characters without spaces.")
+    return base_url, token
+
+
+def jira_base_url():
+    base_url = os.environ.get("JIRA_BASE_URL", "").rstrip("/")
+    if not base_url:
+        raise JiraError("Set JIRA_BASE_URL before opening a Jira ticket.")
     try:
         address = urlsplit(base_url)
         port = address.port
@@ -47,9 +57,7 @@ def configuration():
         raise JiraError(
             "JIRA_BASE_URL must use https:// (http:// is allowed only for loopback testing)."
         )
-    if not re.fullmatch(r"[!-~]+", token):
-        raise JiraError("JIRA_TOKEN must contain only visible ASCII characters without spaces.")
-    return base_url, token
+    return base_url
 
 
 def fetch_title(key, base_url, token):

@@ -44,6 +44,10 @@ export JIRA_BASE_URL="https://jira.example.com"
 export JIRA_TOKEN="<your-personal-access-token>"
 ```
 
+The `jira` command opens a ticket in your default browser using `JIRA_BASE_URL`;
+it does not require `JIRA_TOKEN` because authentication is handled by the browser.
+For example: `jira PROJ-123`.
+
 Use a Jira Data Center/Server token with permission to view the ticket.
 The shared `lib/jira_client.py` module handles Jira configuration, authentication,
 HTTP requests and errors. `create-branch` uses it to read the ticket title
