@@ -93,3 +93,40 @@ custom fields, including story points, may have different IDs.
 It does not rank issues, modify Jira or call an AI model. Review and handle
 exported data according to your organization's policies; avoid committing
 backlog exports or sending internal issue contents to unapproved services.
+
+## Export a Bitbucket pull request
+
+`bin/bitbucket_pr.py` exports a Bitbucket Server/Data Center pull request to a
+new local directory for review by an AI agent. Set `BITBUCKET_TOKEN` to a
+personal access token with permission to view the repository. For a PR number,
+the command reads the project and repository from the current Git remote
+(`origin` by default):
+
+```sh
+export BITBUCKET_TOKEN="<your-personal-access-token>"
+bitbucket-pr 123
+bitbucket-pr 123 --remote upstream --output ./pr-review
+```
+
+Alternatively, pass a full pull request URL; this works outside a Git
+repository and takes precedence over any Git remote:
+
+```sh
+bitbucket-pr https://bitbucket.example.com/bitbucket/projects/PROJ/repos/my-repo/pull-requests/123
+```
+
+The output directory contains the full PR response (`pull-request.json`),
+all commits (`commits.json`), changed paths (`changes.json`), activities
+including comments and review events (`activities.json`), the API diff
+(`diff.patch`), and a `manifest.json`. API collections are fully paginated.
+The default directory is named `bitbucket-pr-<project>-<repository>-<id>`;
+existing output paths are never overwritten. Set `BITBUCKET_BASE_URL` only
+when the URL derived from the Git remote needs an explicit REST-service base
+URL. Exports may contain confidential source code and review discussion; keep
+them local and handle them according to your organization's policies.
+
+Run the tests with the same command shown above:
+
+```sh
+python3 -m unittest discover -s tests -v
+```
